@@ -3,7 +3,7 @@
 This library is use by [Android Starter](https://github.com/manu1895/Android-Starter)
 
 
-## Usage 
+## Setup 
 
 1. Import files in your folder
 2. Create database
