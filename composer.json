@@ -1,0 +1,14 @@
+{
+    "name": "eloisance/android-starter",
+    "authors": [
+        {
+            "name": "Emmanuel Loisance",
+            "email": "emmanuel.loisance@gmail.com"
+        }
+    ],
+    "require": {
+    	"slim/slim": "2.3.*",
+        "entomb/slim-json-api": "dev-master",
+        "katzgrau/klogger": "dev-master"
+    }
+}
