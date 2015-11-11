@@ -22,6 +22,7 @@ $app->get('/users/:email/:password', function($email, $password) use ($app, $bdd
     
 });
 
+
 /**
  * Récupère un utilisateur à partir de son id Google
  */
@@ -65,8 +66,6 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 		$app->render(400);
 	}
 
-
-
 	// Vérifie que l'email n'existe pas déjà en base
 	$stmt = $bdd->prepare("SELECT COUNT(*) FROM users WHERE email = :email");
 	$stmt->bindParam("email", $email, PDO::PARAM_STR);
@@ -108,12 +107,8 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 	else {
 		$app->render(409);
 	}
-
-	
-    
-    
+  
 });
-
 
 
 /**
@@ -159,8 +154,73 @@ $app->post('/users/create/google', function() use ($app, $bdd, $logger) {
 		$logger->info('Create new user with google fail : ' . $error);
 		$app->render(400);
 	}
-    
-    
+
+});
+
+
+/**
+ * Met à jour un utilisateur à partir de son id
+ * Retourne les informations du nouvel utilisateur
+ */
+$app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
+
+	$firstname = $app->request()->params('firstname');
+	$lastname = $app->request()->params('lastname');
+	$email = $app->request()->params('email');
+	$phone = $app->request()->params('phone'); 
+
+	// Get user
+	$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
+	$stmt->bindParam('id', $id, PDO::PARAM_INT);
+	$stmt->execute();
+	$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+	if($user['id'] == null) {
+		$logger->info('La tentative de mise à jour du user:' . $id . ' a échouée -> user not found');
+		$app->render(404, array(
+			'error' => true,
+            'msg'   => 'user not found',
+        ));
+	} else {
+
+		// if provider is google, dont update google account information like email, name.. 
+		if($user['provider'] == 'google') {
+			$stmt = $bdd->prepare("UPDATE users SET phone = :phone WHERE id = :id");
+			$stmt->bindParam('id', $id, PDO::PARAM_INT);
+			$stmt->bindParam('phone', $phone, PDO::PARAM_STR);
+		} else if($user['provider'] == 'default') {
+			$stmt = $bdd->prepare("UPDATE users SET firstname = :firstname, lastname = :lastname, email = :email, phone = :phone WHERE id = :id");
+			$stmt->bindParam('id', $id, PDO::PARAM_INT);
+			$stmt->bindParam('firstname', $firstname, PDO::PARAM_STR);
+			$stmt->bindParam('lastname', $lastname, PDO::PARAM_STR);
+			$stmt->bindParam('email', $email, PDO::PARAM_STR);
+			$stmt->bindParam('phone', $phone, PDO::PARAM_STR);
+		} else {
+			$logger->info('Update user fail -> bad provider');
+			$app->render(400);
+		}
+
+		// Update ok 
+		if($stmt->execute()) {
+			$logger->info('User:' . $id . ' a été mis correctement à jour');
+			// Get new user
+			$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
+			$stmt->bindParam('id', $id, PDO::PARAM_INT);
+			$stmt->execute();
+			$user = $stmt->fetch(PDO::FETCH_ASSOC);
+			if($user['id'] == null) {
+				$app->render(404, array(
+					'error' => true,
+		            'msg'   => 'user not found',
+		        ));
+			} else {
+		        $app->render(200, $user);
+			}	
+		} else {
+			$logger->info('La tentative de mise à jour du user:' . $id . ' a échouée -> update fail');
+		}
+	}
+
 });
 
 ?>
