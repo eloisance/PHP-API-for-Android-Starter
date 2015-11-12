@@ -17,11 +17,14 @@ This library is use by [Android Starter](https://github.com/manu1895/Android-Sta
 * Get user with Google id 
 * Create user from email and password
 * Create user from Google id 
-* Log when new user is created (success or fail)
+* Update user account
+* Log
 
 
 ## TODO  
 
 * Secure password 
 * Secure API with token
+* Delete account 
+* Forgot password
 
