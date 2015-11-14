@@ -223,4 +223,36 @@ $app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
 
 });
 
+
+/**
+ * Supprime l'utilisateur à partir de son id
+ */
+$app->delete('/users/:id', function($id) use ($app, $bdd, $logger) {
+
+	// Get user
+	$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
+	$stmt->bindParam('id', $id, PDO::PARAM_INT);
+	$stmt->execute();
+	$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+	if($user['id'] == null) {
+		$logger->info('Impossible de supprimer le user:' . $id . ' -> user not found');
+		$app->render(404, array(
+			'error' => true,
+            'msg'   => 'user not found',
+        ));
+	} else {
+		$stmt = $bdd->prepare("DELETE FROM users WHERE id = :id");
+		$stmt->bindParam('id', $id, PDO::PARAM_INT);
+		if($stmt->execute()) {
+			$logger->info('Delete user: ' . $id);
+			$app->render(200);
+		} else {
+			$logger->info('Delete user fail, id: ' . $id);
+			$app->render(400);
+		}
+	}
+
+});
+
 ?>

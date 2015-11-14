@@ -18,6 +18,7 @@ This library is use by [Android Starter](https://github.com/manu1895/Android-Sta
 * Create user from email and password
 * Create user from Google id 
 * Update user account
+* Delete user account 
 * Log
 
 
@@ -25,6 +26,5 @@ This library is use by [Android Starter](https://github.com/manu1895/Android-Sta
 
 * Secure password 
 * Secure API with token
-* Delete account 
 * Forgot password
 
