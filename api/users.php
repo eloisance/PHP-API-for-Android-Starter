@@ -3,7 +3,7 @@
 /**
  * Récupère un utilisateur à partir de son email et son mot de passe
  */
-$app->get('/users/:email/:password', function($email, $password) use ($app, $bdd) {
+$app->get('/users/:email/:password', function($email, $password) use ($app, $bdd, $logger) {
 
 	$stmt = $bdd->prepare("SELECT * FROM users WHERE email = :email AND password = :password AND provider = 'default' ");
 	$stmt->bindParam('email', $email, PDO::PARAM_STR);
@@ -12,11 +12,13 @@ $app->get('/users/:email/:password', function($email, $password) use ($app, $bdd
 	$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 	if($user['id'] == null) {
+		$logger->error('Get user from default fail, user not found');
 		$app->render(404, array(
 			'error' => true,
             'msg'   => 'user not found',
         ));
 	} else {
+		$logger->info('Get user '.$user['id'].' from default success');
 		$app->render(200, $user);
 	}
     
@@ -26,7 +28,7 @@ $app->get('/users/:email/:password', function($email, $password) use ($app, $bdd
 /**
  * Récupère un utilisateur à partir de son id Google
  */
-$app->get('/users/:id_google', function($id) use ($app, $bdd) {
+$app->get('/users/:id_google', function($id) use ($app, $bdd, $logger) {
 
     $stmt = $bdd->prepare("SELECT * FROM users WHERE id_google = :id_google AND provider = 'google' ");
 	$stmt->bindParam('id_google', $id, PDO::PARAM_STR);
@@ -34,11 +36,13 @@ $app->get('/users/:id_google', function($id) use ($app, $bdd) {
 	$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 	if($user['id'] == null) {
+		$logger->error('Get user from google fail, user not found');
 		$app->render(404, array(
 			'error' => true,
             'msg'   => 'user not found',
         ));
 	} else {
+		$logger->info('Get user '.$user['id'].' from google success');
 		$app->render(200, $user);
 	}
     
@@ -63,6 +67,7 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 	// Vérification des variables
 	$params = [$firstname, $lastname, $email, $password];
 	if(!varAreOk($params)) {
+		$logger->error('Create new user default fail, vars are not ok');
 		$app->render(400);
 	}
 
@@ -91,6 +96,7 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 			$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 			if($user['id'] == null) {
+				$logger->error('Create new user default fail, user not found');
 				$app->render(404);
 			} else {
 				$logger->info('Create new user default successfully !');
@@ -99,12 +105,13 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 
 		} else {
 			$error = $stmt->errorInfo();
-			$logger->info('Create new user default fail : ' . $error);
+			$logger->error('Create new user default fail : ' . $error);
 			$app->render(400);
 		}
 	} 
 	// Email déjà enregistré 
 	else {
+		$logger->error('Create new user default fail, email already exist');
 		$app->render(409);
 	}
   
@@ -140,6 +147,7 @@ $app->post('/users/create/google', function() use ($app, $bdd, $logger) {
 		$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 		if($user['id'] == null) {
+			$logger->error('Create new user with google fail, user not found');
 			$app->render(404, array(
 				'error' => true,
 	            'msg'   => 'user not found',
@@ -151,7 +159,7 @@ $app->post('/users/create/google', function() use ($app, $bdd, $logger) {
 
 	} else {
 		$error = $stmt->errorInfo();
-		$logger->info('Create new user with google fail : ' . $error);
+		$logger->error('Create new user with google fail : ' . $error);
 		$app->render(400);
 	}
 
@@ -176,7 +184,7 @@ $app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
 	$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 	if($user['id'] == null) {
-		$logger->info('La tentative de mise à jour du user:' . $id . ' a échouée -> user not found');
+		$logger->error('La tentative de mise à jour du user:' . $id . ' a échouée -> user not found');
 		$app->render(404, array(
 			'error' => true,
             'msg'   => 'user not found',
@@ -196,28 +204,29 @@ $app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
 			$stmt->bindParam('email', $email, PDO::PARAM_STR);
 			$stmt->bindParam('phone', $phone, PDO::PARAM_STR);
 		} else {
-			$logger->info('Update user fail -> bad provider');
+			$logger->error('Update user fail -> bad provider');
 			$app->render(400);
 		}
 
 		// Update ok 
 		if($stmt->execute()) {
-			$logger->info('User:' . $id . ' a été mis correctement à jour');
 			// Get new user
 			$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
 			$stmt->bindParam('id', $id, PDO::PARAM_INT);
 			$stmt->execute();
 			$user = $stmt->fetch(PDO::FETCH_ASSOC);
 			if($user['id'] == null) {
+				$logger->error('La tentative de mise à jour du user:' . $id . ' a échouée -> user updated not found');
 				$app->render(404, array(
 					'error' => true,
 		            'msg'   => 'user not found',
 		        ));
 			} else {
+				$logger->info('User:' . $id . ' a été mis correctement à jour');
 		        $app->render(200, $user);
 			}	
 		} else {
-			$logger->info('La tentative de mise à jour du user:' . $id . ' a échouée -> update fail');
+			$logger->error('La tentative de mise à jour du user:' . $id . ' a échouée -> update fail');
 		}
 	}
 
@@ -236,7 +245,7 @@ $app->delete('/users/:id', function($id) use ($app, $bdd, $logger) {
 	$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 	if($user['id'] == null) {
-		$logger->info('Impossible de supprimer le user:' . $id . ' -> user not found');
+		$logger->error('Impossible de supprimer le user:' . $id . ' -> user not found');
 		$app->render(404, array(
 			'error' => true,
             'msg'   => 'user not found',
@@ -248,7 +257,7 @@ $app->delete('/users/:id', function($id) use ($app, $bdd, $logger) {
 			$logger->info('Delete user: ' . $id);
 			$app->render(200);
 		} else {
-			$logger->info('Delete user fail, id: ' . $id);
+			$logger->error('Delete user fail, id: ' . $id);
 			$app->render(400);
 		}
 	}
