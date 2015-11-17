@@ -5,6 +5,8 @@
  */
 $app->get('/users/:email/:password', function($email, $password) use ($app, $bdd, $logger) {
 
+	$password = hash('sha1', $password);
+	
 	$stmt = $bdd->prepare("SELECT * FROM users WHERE email = :email AND password = :password AND provider = 'default' ");
 	$stmt->bindParam('email', $email, PDO::PARAM_STR);
 	$stmt->bindParam('password', $password, PDO::PARAM_STR);

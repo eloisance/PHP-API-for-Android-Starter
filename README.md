@@ -19,12 +19,12 @@ This library is use by [Android Starter](https://github.com/manu1895/Android-Sta
 * Create user from Google id 
 * Update user account
 * Delete user account 
-* Log
+* Log user actions
+* Secure password (sha1)
 
 
 ## TODO  
 
-* Secure password 
 * Secure API with token
 * Forgot password
 
