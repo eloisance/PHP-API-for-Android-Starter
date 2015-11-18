@@ -229,6 +229,58 @@ $app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
 			}	
 		} else {
 			$logger->error('La tentative de mise à jour du user:' . $id . ' a échouée -> update fail');
+			$app->render(400);
+		}
+	}
+
+});
+
+
+/**
+ * Met à jour le mot de passe d'un utilisateur (from default only)
+ * Retourne les informations du nouvel utilisateur
+ */
+$app->put('/users/password/:id', function($id) use ($app, $bdd, $logger) {
+
+	$password = $app->request()->params('password');
+	$newPassword = $app->request()->params('new_password');
+
+	// Get user
+	$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id AND password = :password");
+	$stmt->bindParam('id', $id, PDO::PARAM_INT);
+	$stmt->bindParam('password', $password, PDO::PARAM_STR);
+	$stmt->execute();
+	$user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+	if($user['id'] == null) {
+		$logger->error('Mot de passe du user: ' . $id . ' n\'a pas pu être mis à jour -> user not found');
+		$app->render(404, array(
+			'error' => true,
+            'msg'   => 'user not found',
+        ));
+	} else {
+		$stmt = $bdd->prepare("UPDATE users SET password = :new_password WHERE id = :id");
+		$stmt->bindParam('id', $id, PDO::PARAM_INT);
+		$stmt->bindParam('new_password', $newPassword, PDO::PARAM_STR);
+		if($stmt->execute()) {
+			// Get new user
+			$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
+			$stmt->bindParam('id', $id, PDO::PARAM_INT);
+			$stmt->execute();
+			$user = $stmt->fetch(PDO::FETCH_ASSOC);
+			if($user['id'] == null) {
+				$logger->error('Mot de passe du user: ' . $id . ' a été mis correctement à jour mais user not found after update');
+				$app->render(404, array(
+					'error' => true,
+		            'msg'   => 'user not found',
+		        ));
+			} else {
+				$logger->info('Mot de passe du user: ' . $id . ' a été mis correctement à jour');
+		        $app->render(200, $user);
+			}	
+		} else {
+			$logger->error('Mot de passe du user: ' . $id . ' n\'a pas pu être mis à jour');
+		    $app->render(400);
 		}
 	}
 
