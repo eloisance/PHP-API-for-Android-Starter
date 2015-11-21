@@ -14,7 +14,10 @@ $bdd = new PDO('mysql:host=localhost;dbname=android-starter', 'root', '');
 $bdd->exec('SET CHARACTER SET utf8');
 
 // init logger
-$logger = new Katzgrau\KLogger\Logger('C:/wamp/www/android-starter/logs');
+$logger = new Katzgrau\KLogger\Logger('C:/wamp/www/android-starter/logs', Psr\Log\LogLevel::DEBUG, array(
+	'extension' => 'log',
+	'logFormat' => '[{date}] [{level}] {message}'
+));
 
 // add all
 require_once('users.php');

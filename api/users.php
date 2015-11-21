@@ -1,61 +1,60 @@
 <?php
+/**
+ * @author Emmanuel Loisance
+ * 
+ * GET /users/:email/:password
+ * GET /users/:id_google
+ * POST /users/create/default
+ * POST /users/create/google
+ * PUT /users/:id
+ * PUT /users/password/:id
+ * DELETE /users/:id
+ */
+
 
 /**
- * Récupère un utilisateur à partir de son email et son mot de passe
+ * Get user based on email and password
+ * 200 : user found
+ * 404 : user not found
  */
 $app->get('/users/:email/:password', function($email, $password) use ($app, $bdd, $logger) {
 
-	$password = hash('sha1', $password);
-	
-	$stmt = $bdd->prepare("SELECT * FROM users WHERE email = :email AND password = :password AND provider = 'default' ");
-	$stmt->bindParam('email', $email, PDO::PARAM_STR);
-	$stmt->bindParam('password', $password, PDO::PARAM_STR);
-	$stmt->execute();
-	$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-	if($user['id'] == null) {
-		$logger->error('Get user from default fail, user not found');
-		$app->render(404, array(
-			'error' => true,
-            'msg'   => 'user not found',
-        ));
-	} else {
+	if($user = getDefaultUser($bdd, $email, $password)) {
 		$logger->info('Get user '.$user['id'].' from default success');
 		$app->render(200, $user);
+	} else {
+		$logger->error('Get user from default fail -> user not found');
+		$app->render(404);
 	}
-    
+
 });
 
 
 /**
- * Récupère un utilisateur à partir de son id Google
+ * Get user based on Google id
+ * 200 : user found
+ * 404 : user not found
  */
-$app->get('/users/:id_google', function($id) use ($app, $bdd, $logger) {
+$app->get('/users/:id_google', function($idGoogle) use ($app, $bdd, $logger) {
 
-    $stmt = $bdd->prepare("SELECT * FROM users WHERE id_google = :id_google AND provider = 'google' ");
-	$stmt->bindParam('id_google', $id, PDO::PARAM_STR);
-	$stmt->execute();
-	$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-	if($user['id'] == null) {
-		$logger->error('Get user from google fail, user not found');
-		$app->render(404, array(
-			'error' => true,
-            'msg'   => 'user not found',
-        ));
-	} else {
+	if($user = getGoogleUser($bdd, $idGoogle)) {
 		$logger->info('Get user '.$user['id'].' from google success');
 		$app->render(200, $user);
+	} else {
+		$logger->error('Get user from google fail -> user not found');
+		$app->render(404);
 	}
-    
+
 });
 
 
 /**
- * Ajoute un utilisateur à partir des informations saisies dans l'application
- * Retourne l'utilisateur crée (avec son id)
- * 201 : User created
- * 
+ * Add user based on default form
+ * Return this new user 
+ * 201 : user created
+ * 400 : error
+ * 404 : new user not found 
+ * 409 : email already used
  */
 $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 
@@ -66,20 +65,20 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 	$provider = "default";
 	$date = date('Y-m-d');
 
-	// Vérification des variables
+	// check params
 	$params = [$firstname, $lastname, $email, $password];
 	if(!varAreOk($params)) {
-		$logger->error('Create new user default fail, vars are not ok');
+		$logger->error('Create new user default fail -> vars are not ok');
 		$app->render(400);
 	}
 
-	// Vérifie que l'email n'existe pas déjà en base
+	// Check if email already used
 	$stmt = $bdd->prepare("SELECT COUNT(*) FROM users WHERE email = :email");
 	$stmt->bindParam("email", $email, PDO::PARAM_STR);
 	$stmt->execute();
 	$count = $stmt->fetchColumn();
 
-	// L'email n'existe pas encore, on ajoute
+	// Email doesn't exist yet
 	if($count == 0) {
 		$stmt = $bdd->prepare("INSERT INTO users (firstname, lastname, email, password, provider, registration_date) VALUES (:firstname, :lastname, :email, :password, :provider, :registration_date)");
 		$stmt->bindParam(':firstname', $firstname, PDO::PARAM_STR);
@@ -89,31 +88,24 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 		$stmt->bindParam(':provider', $provider, PDO::PARAM_STR);
 		$stmt->bindParam(':registration_date', $date, PDO::PARAM_STR);
 
-		// Si user bien ajouté on le recherche pour renvoyer le user complet 
+		// If user added successfully, get it and render it
 		if($stmt->execute()) {
-			$stmt = $bdd->prepare("SELECT * FROM users WHERE email = :email AND password = :password AND provider = '$provider' ");
-			$stmt->bindParam('email', $email, PDO::PARAM_STR);
-			$stmt->bindParam('password', $password, PDO::PARAM_STR);
-			$stmt->execute();
-			$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-			if($user['id'] == null) {
-				$logger->error('Create new user default fail, user not found');
-				$app->render(404);
-			} else {
-				$logger->info('Create new user default successfully !');
+			if($user = getDefaultUser($bdd, $email, $password)) {
+				$logger->info('Create new user: '.$user['id'].' default successfully');
 				$app->render(201, $user);
+			} else {
+				$logger->error('Create new user default fail -> user not found');
+				$app->render(404);
 			}
-
 		} else {
 			$error = $stmt->errorInfo();
-			$logger->error('Create new user default fail : ' . $error);
+			$logger->error('Create new user default fail -> ' . $error);
 			$app->render(400);
 		}
 	} 
-	// Email déjà enregistré 
+	// Email already used
 	else {
-		$logger->error('Create new user default fail, email already exist');
+		$logger->error('Create new user default fail -> email already exist');
 		$app->render(409);
 	}
   
@@ -121,8 +113,11 @@ $app->post('/users/create/default', function() use ($app, $bdd, $logger) {
 
 
 /**
- * Ajoute un utilisateur à partir de son id Google
- * Retourne l'utilisateur crée (avec son id)
+ * Add user based on Google authentication
+ * Return this new user 
+ * 201 : user created
+ * 400 : error
+ * 404 : new user not found
  */
 $app->post('/users/create/google', function() use ($app, $bdd, $logger) {
 
@@ -139,29 +134,20 @@ $app->post('/users/create/google', function() use ($app, $bdd, $logger) {
 	$stmt->bindParam(':lastname', $lastname);
 	$stmt->bindParam(':email', $email);
 	$stmt->bindParam(':provider', $provider);
-	$stmt->bindParam(':registration_date', $date, PDO::PARAM_STR);
+	$stmt->bindParam(':registration_date', $date);
 
-	// Si user bien ajouté on le recherche pour renvoyer le user complet 
+	// If user added successfully, get it and render it
 	if($stmt->execute()) {
-		$stmt = $bdd->prepare("SELECT * FROM users WHERE id_google = :id_google AND provider = '$provider' ");
-		$stmt->bindParam('id_google', $idGoogle, PDO::PARAM_STR);
-		$stmt->execute();
-		$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-		if($user['id'] == null) {
-			$logger->error('Create new user with google fail, user not found');
-			$app->render(404, array(
-				'error' => true,
-	            'msg'   => 'user not found',
-	        ));
-		} else {
-			$logger->info('Create new user with google successfully !');
+		if($user = getGoogleUser($bdd, $idGoogle)) {
+			$logger->info('Create new user: '.$idGoogle.' with google successfully');
 			$app->render(201, $user);
+		} else {
+			$logger->error('Create new user: '.$idGoogle.' with google fail -> user not found after insert');
+			$app->render(404);
 		}
-
 	} else {
 		$error = $stmt->errorInfo();
-		$logger->error('Create new user with google fail : ' . $error);
+		$logger->error('Create new user with google fail -> '.$error);
 		$app->render(400);
 	}
 
@@ -169,8 +155,11 @@ $app->post('/users/create/google', function() use ($app, $bdd, $logger) {
 
 
 /**
- * Met à jour un utilisateur à partir de son id
- * Retourne les informations du nouvel utilisateur
+ * Update user based on id
+ * Return updated user
+ * 200 : user updated
+ * 400 : error
+ * 404 : user not found
  */
 $app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
 
@@ -180,19 +169,7 @@ $app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
 	$phone = $app->request()->params('phone'); 
 
 	// Get user
-	$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
-	$stmt->bindParam('id', $id, PDO::PARAM_INT);
-	$stmt->execute();
-	$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-	if($user['id'] == null) {
-		$logger->error('La tentative de mise à jour du user:' . $id . ' a échouée -> user not found');
-		$app->render(404, array(
-			'error' => true,
-            'msg'   => 'user not found',
-        ));
-	} else {
-
+	if($user = getUserById($bdd, $id)) {
 		// if provider is google, dont update google account information like email, name.. 
 		if($user['provider'] == 'google') {
 			$stmt = $bdd->prepare("UPDATE users SET phone = :phone WHERE id = :id");
@@ -209,36 +186,34 @@ $app->put('/users/:id', function($id) use ($app, $bdd, $logger) {
 			$logger->error('Update user fail -> bad provider');
 			$app->render(400);
 		}
-
 		// Update ok 
 		if($stmt->execute()) {
 			// Get new user
-			$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
-			$stmt->bindParam('id', $id, PDO::PARAM_INT);
-			$stmt->execute();
-			$user = $stmt->fetch(PDO::FETCH_ASSOC);
-			if($user['id'] == null) {
-				$logger->error('La tentative de mise à jour du user:' . $id . ' a échouée -> user updated not found');
-				$app->render(404, array(
-					'error' => true,
-		            'msg'   => 'user not found',
-		        ));
-			} else {
-				$logger->info('User:' . $id . ' a été mis correctement à jour');
+			if($user = getUserById($bdd, $id)) {
+				$logger->info('User: '.$id.' updated');
 		        $app->render(200, $user);
-			}	
+			} else {
+				$logger->error('User: '.$id.' update fail -> user updated not found');
+				$app->render(404);
+			}
 		} else {
-			$logger->error('La tentative de mise à jour du user:' . $id . ' a échouée -> update fail');
+			$logger->error('User: '.$id.' update fail');
 			$app->render(400);
 		}
+	} else {
+		$logger->error('User: '.$id.' update fail -> user not found');
+		$app->render(404);
 	}
 
 });
 
 
 /**
- * Met à jour le mot de passe d'un utilisateur (from default only)
- * Retourne les informations du nouvel utilisateur
+ * Update user password (only default provider)
+ * Return new user
+ * 200 : user password updated
+ * 400 : error
+ * 404 : user not found
  */
 $app->put('/users/password/:id', function($id) use ($app, $bdd, $logger) {
 
@@ -246,74 +221,53 @@ $app->put('/users/password/:id', function($id) use ($app, $bdd, $logger) {
 	$newPassword = $app->request()->params('new_password');
 
 	// Get user
-	$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id AND password = :password");
-	$stmt->bindParam('id', $id, PDO::PARAM_INT);
-	$stmt->bindParam('password', $password, PDO::PARAM_STR);
-	$stmt->execute();
-	$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-	if($user['id'] == null) {
-		$logger->error('Mot de passe du user: ' . $id . ' n\'a pas pu être mis à jour -> user not found');
-		$app->render(404, array(
-			'error' => true,
-            'msg'   => 'user not found',
-        ));
-	} else {
+	if($user = getUserByIdAndPassword($bdd, $id, $password)) {
 		$stmt = $bdd->prepare("UPDATE users SET password = :new_password WHERE id = :id");
 		$stmt->bindParam('id', $id, PDO::PARAM_INT);
 		$stmt->bindParam('new_password', $newPassword, PDO::PARAM_STR);
+		// Update ok
 		if($stmt->execute()) {
 			// Get new user
-			$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
-			$stmt->bindParam('id', $id, PDO::PARAM_INT);
-			$stmt->execute();
-			$user = $stmt->fetch(PDO::FETCH_ASSOC);
-			if($user['id'] == null) {
-				$logger->error('Mot de passe du user: ' . $id . ' a été mis correctement à jour mais user not found after update');
-				$app->render(404, array(
-					'error' => true,
-		            'msg'   => 'user not found',
-		        ));
-			} else {
-				$logger->info('Mot de passe du user: ' . $id . ' a été mis correctement à jour');
+			if($user = getUserById($bdd, $id)) {
+				$logger->info('User: '.$id.' password update');
 		        $app->render(200, $user);
-			}	
+			} else {
+				$logger->error('User: '.$id.' password update but user not found after update');
+				$app->render(404);
+			}
 		} else {
-			$logger->error('Mot de passe du user: ' . $id . ' n\'a pas pu être mis à jour');
+			$logger->error('User: '.$id.' password fail update');
 		    $app->render(400);
 		}
+	} else {
+		$logger->error('User: '.$id.' password fail -> user not found');
+		$app->render(404);
 	}
 
 });
 
 
 /**
- * Supprime l'utilisateur à partir de son id
+ * Delete user based on id
+ * 200 : user deleted
+ * 400 : error
+ * 404 : user not found
  */
 $app->delete('/users/:id', function($id) use ($app, $bdd, $logger) {
 
-	// Get user
-	$stmt = $bdd->prepare("SELECT * FROM users WHERE id = :id");
-	$stmt->bindParam('id', $id, PDO::PARAM_INT);
-	$stmt->execute();
-	$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-	if($user['id'] == null) {
-		$logger->error('Impossible de supprimer le user:' . $id . ' -> user not found');
-		$app->render(404, array(
-			'error' => true,
-            'msg'   => 'user not found',
-        ));
-	} else {
+	if($user = getUserById($bdd, $id)) {
 		$stmt = $bdd->prepare("DELETE FROM users WHERE id = :id");
 		$stmt->bindParam('id', $id, PDO::PARAM_INT);
 		if($stmt->execute()) {
-			$logger->info('Delete user: ' . $id);
+			$logger->info('User: '.$id.' deleted');
 			$app->render(200);
 		} else {
-			$logger->error('Delete user fail, id: ' . $id);
+			$logger->error('User: '.$id.' delete fail');
 			$app->render(400);
 		}
+	} else {
+		$logger->error('User: '.$id.' can\'t be deleted -> user not found');
+		$app->render(404);
 	}
 
 });
